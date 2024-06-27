@@ -1,0 +1,8 @@
+
+# go
+*.pprof
+*.prof
+
+
+# VSCode
+.vscode/
