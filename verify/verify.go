@@ -7,67 +7,18 @@ import (
 	"math"
 	"os"
 	"sync"
-	"time"
 
-	"github.com/Solidsilver/merkle/btree"
-	"github.com/Solidsilver/merkle/btree2"
+	"github.com/Solidsilver/merkle/hash"
+	"github.com/Solidsilver/merkle/mtree"
 	pb "github.com/schollz/progressbar/v3"
 )
 
 const GB_IN_BYTES = 1073741824
 
-func HashBytes(data []byte, splitSize int) *btree.BTree {
-	size := len(data)
-	bt := btree.New()
-	fmt.Printf("Data size is %d\n", size)
-	if size < splitSize {
-		bt.AddData(data)
-		return bt
-	}
-	for i := 0; i < size-splitSize; i += splitSize {
-		part := data[i : i+splitSize]
-		fmt.Printf("Part [%d-%d]\n", i, i+splitSize-1)
-		bt.AddData(part)
-	}
-	lastPart := data[size-splitSize:]
-	fmt.Printf("Part [%d-%d]\n", size-splitSize, size-1)
-	bt.AddData(lastPart)
-	return bt
-}
-
-func HashFile(path string, splitSize int) (*btree.BTree, error) {
-	bt := btree.New()
-
-	openFile, err := os.Open(path)
-	defer openFile.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	complete := false
-	chunk := make([]byte, splitSize)
-	reader := bufio.NewReaderSize(openFile, 8192)
-	for !complete {
-		// bytesRead, err := openFile.Read(chunk)
-		bytesRead, err := io.ReadFull(reader, chunk)
-		if err == io.EOF || bytesRead < splitSize {
-			// for i := bytesRead; i < splitSize; i++ {
-			// 	chunk[i] = 0
-			// }
-			complete = true
-		} else if err != nil && err != io.EOF {
-			fmt.Println(err.Error())
-			return nil, err
-		}
-		// fmt.Printf("Read %d bytes\n", bytesRead)
-		bt.AddData(chunk)
-	}
-
-	return bt, nil
-}
-
-func HashFileProgress(path string, splitSize int) (*btree.BTree, error) {
-	bt := btree.New()
+// HashFile hashes file using typical tree insertion
+// It uses default file read buffer size
+func HashFile(path string, splitSize int) (*mtree.MTree, error) {
+	bt := mtree.New()
 
 	openFile, err := os.Open(path)
 	if err != nil {
@@ -90,28 +41,24 @@ func HashFileProgress(path string, splitSize int) (*btree.BTree, error) {
 	chunk := make([]byte, splitSize)
 	reader := bufio.NewReaderSize(openFile, 8192)
 	for !complete {
-		// bytesRead, err := openFile.Read(chunk)
 		bytesRead, err := io.ReadFull(reader, chunk)
 		if err == io.EOF || bytesRead < splitSize {
-			// for i := bytesRead; i < splitSize; i++ {
-			// 	chunk[i] = 0
-			// }
 			complete = true
 		} else if err != nil && err != io.EOF {
 			fmt.Println(err.Error())
 			return nil, err
 		}
-		// fmt.Printf("Read %d bytes\n", bytesRead)
 		bt.AddData(chunk)
-		// Increment Progress
 		bar.Add(bytesRead)
 	}
 
 	return bt, nil
 }
 
-func HashFileProgress2(path string, splitSize int) (*btree.BTree, error) {
-	bt := btree.New()
+// HashFileLargeReadBuffer hashes file using typical tree insertion
+// It uses up to a 1G file read buffer size
+func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
+	bt := mtree.New()
 
 	openFile, err := os.Open(path)
 	if err != nil {
@@ -129,6 +76,7 @@ func HashFileProgress2(path string, splitSize int) (*btree.BTree, error) {
 		pb.OptionShowElapsedTimeOnFinish(),
 		pb.OptionSetPredictTime(true),
 	)
+	// Read in chunks of 1G at a time
 	readSize := GB_IN_BYTES
 	if fileSize < int64(readSize) {
 		readSize = int(fileSize)
@@ -152,10 +100,11 @@ func HashFileProgress2(path string, splitSize int) (*btree.BTree, error) {
 	return bt, nil
 }
 
-func HashFileProgress3(path string, splitSize int) (*btree.BTree, error) {
-	start := time.Now()
-	bt := btree.New()
-
+// hashes a file by assembling a list of
+// leaves, then building the tree from
+// the leaves up. This uses up to a 1G
+// file read buffer.
+func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
 	openFile, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -166,6 +115,7 @@ func HashFileProgress3(path string, splitSize int) (*btree.BTree, error) {
 		return nil, err
 	}
 	fileSize := stat.Size()
+	harr := hash.NewHashArray(int(math.Ceil(float64(fileSize) / float64(splitSize))))
 	bar := pb.NewOptions64(fileSize,
 		pb.OptionSetDescription("hashing"),
 		pb.OptionShowBytes(true),
@@ -176,79 +126,95 @@ func HashFileProgress3(path string, splitSize int) (*btree.BTree, error) {
 	if fileSize < int64(readSize) {
 		readSize = int(fileSize)
 	}
+	reader := bufio.NewReaderSize(openFile, readSize)
 
 	complete := false
-	chunk := make([]byte, splitSize)
-	reader := bufio.NewReaderSize(openFile, readSize)
-	for !complete {
-		bytesRead, err := io.ReadFull(reader, chunk)
-		if err == io.EOF || bytesRead < splitSize {
-			complete = true
-		} else if err != nil && err != io.EOF {
-			fmt.Println(err.Error())
-			return nil, err
-		}
-		bt.AddDataIter(chunk)
-		bar.Add(bytesRead)
-	}
-	end := time.Since(start)
-	fmt.Println("Finished file hash in", end.String())
-
-	return bt, nil
-}
-
-func HashFileProgress4(path string, splitSize int) (*btree2.BTree, error) {
-	start := time.Now()
-
-	openFile, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer openFile.Close()
-	stat, err := openFile.Stat()
-	if err != nil {
-		return nil, err
-	}
-	fileSize := stat.Size()
-	bt := btree2.New(int(math.Ceil(float64(fileSize) / float64(splitSize))))
-	bar := pb.NewOptions64(fileSize,
-		pb.OptionSetDescription("hashing"),
-		pb.OptionShowBytes(true),
-		pb.OptionShowElapsedTimeOnFinish(),
-		pb.OptionSetPredictTime(true),
-	)
-	readSize := GB_IN_BYTES
-	if fileSize < int64(readSize) {
-		readSize = int(fileSize)
-	}
-
-	complete := false
-	reader := bufio.NewReaderSize(openFile, readSize)
-	jobs := make(chan btree2.HashJob, 100)
+	jobs := make(chan hash.HashJob, 100)
 	var wg sync.WaitGroup
 
 	workers := 3
 	wg.Add(workers)
 	for range workers {
-		go btree2.HashWorker(jobs, bt, &wg)
+		go hash.HashWorker(jobs, harr, &wg)
 	}
 	for !complete {
 		chunk := make([]byte, splitSize)
 		bytesRead, err := io.ReadFull(reader, chunk)
 		if err == io.EOF || bytesRead < splitSize {
 			complete = true
-		} else if err != nil && err != io.EOF {
+		} else if err != nil {
 			fmt.Println(err.Error())
 			return nil, err
 		}
-		bt.AddData(chunk, jobs)
+		harr.QueueHashInsert(chunk, jobs)
 		bar.Add(bytesRead)
 	}
 	close(jobs)
 	wg.Wait()
-	bt.BuildTree()
-	end := time.Since(start)
-	fmt.Println("Finished file hash in", end.String())
+	bt := harr.BuildTree()
 
 	return bt, nil
+}
+
+// HashFileCmp is a debug function
+// to compare outputs of multiple
+// hash techniques.
+func HashFileCmp(path string, splitSize int) error {
+	openFile, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer openFile.Close()
+	stat, err := openFile.Stat()
+	if err != nil {
+		return err
+	}
+	iterBuiltTree := mtree.New()
+	fileSize := stat.Size()
+	fmt.Printf("File size is %d bytes\n", fileSize)
+	harrSize := int(math.Ceil(float64(fileSize) / float64(splitSize)))
+	fmt.Printf("harrSize is %d\n", harrSize)
+	harr := hash.NewHashArray(harrSize)
+	bar := pb.NewOptions64(fileSize,
+		pb.OptionSetDescription("hashing"),
+		pb.OptionShowBytes(true),
+		pb.OptionShowElapsedTimeOnFinish(),
+		pb.OptionSetPredictTime(true),
+	)
+	readSize := GB_IN_BYTES
+	if fileSize < int64(readSize) {
+		readSize = int(fileSize)
+	}
+	reader := bufio.NewReaderSize(openFile, readSize)
+
+	complete := false
+	jobs := make(chan hash.HashJob, 100)
+	var wg sync.WaitGroup
+
+	workers := 3
+	wg.Add(workers)
+	for range workers {
+		go hash.HashWorker(jobs, harr, &wg)
+	}
+	for !complete {
+		chunk := make([]byte, splitSize)
+		bytesRead, err := io.ReadFull(reader, chunk)
+		if err == io.EOF || bytesRead < splitSize {
+			complete = true
+		} else if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+		if bytesRead != 0 {
+			harr.QueueHashInsert(chunk, jobs)
+			iterBuiltTree.AddData(chunk)
+			bar.Add(bytesRead)
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	harrBuiltTree := harr.BuildTree()
+	mtree.CompareTrees(harrBuiltTree, iterBuiltTree)
+
+	return nil
 }

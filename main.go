@@ -1,20 +1,22 @@
 package main
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"runtime/pprof"
 
-	"github.com/Solidsilver/merkle/btree"
+	"github.com/Solidsilver/merkle/mtree"
 	"github.com/Solidsilver/merkle/verify"
 )
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-var filePath = flag.String("f", "", "write cpu profile to file")
-var ver = flag.String("v", "a", "do the thing")
+var (
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	filePath   = flag.String("f", "", "write cpu profile to file")
+	ver        = flag.String("v", "a", "do the thing")
+)
 
 func main() {
 	flag.Parse()
@@ -27,34 +29,20 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
-	// go func() {
-	// 	http.ListenAndServe(":8080", nil)
-	// }()
-	//..
-	// fileBytes, err := os.ReadFile(path)
-	// if err != nil {
-	// 	fmt.Println("Error opening file:" + err.Error())
-	// 	return
-	// }
-	// start := time.Now()
-
-	// bt, err := verify.HashFileProgress(*filePath, 2048)
-	var bt btree.MTree
+	if *filePath == "" {
+		log.Fatal("You must include a file to hash using the -f parameter. Ex: go run main.go -f <filepath>")
+	}
+	var bt *mtree.MTree
 	var err error
 	if *ver == "b" {
-		bt, err = verify.HashFileProgress4(*filePath, 2048)
+		bt, err = verify.HashFileHarr(*filePath, 2048)
 	} else {
-		bt, err = verify.HashFileProgress2(*filePath, 2048)
-
+		bt, err = verify.HashFileLargeReadBuffer(*filePath, 2048)
 	}
 	if err != nil {
 		fmt.Println("Error hashing file:", err.Error())
 	}
-	// fmt.Println(bt.String())
 	rootHash := bt.RootHash()
-	fmt.Println("hash is:", base64.StdEncoding.EncodeToString(rootHash[:]))
-	fmt.Printf("file: %s\n", *filePath)
-	// fmt.Printf("Time to hash: %s\n", opTime.String())
-
-	// time.Sleep(time.Minute * 1)
+	hexHash := hex.EncodeToString(rootHash[:])
+	fmt.Printf("\nhash: %s\nfile: %s\n", hexHash, *filePath)
 }
