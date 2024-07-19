@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/Solidsilver/merkle/hash"
 	"github.com/Solidsilver/merkle/mtree"
@@ -151,7 +152,19 @@ func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
 	}
 	close(jobs)
 	wg.Wait()
+	fmt.Println()
+	bar = pb.NewOptions(-1,
+		pb.OptionSetDescription("Building tree"),
+	)
+	isLoading := true
+	go func() {
+		for isLoading {
+			bar.Add(1)
+			time.Sleep(50 * time.Millisecond)
+		}
+	}()
 	bt := harr.BuildTree()
+	isLoading = false
 
 	return bt, nil
 }

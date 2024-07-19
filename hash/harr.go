@@ -38,7 +38,7 @@ type HashJob struct {
 // and inserts it at the proper location in the HashArray
 func HashWorker(jobs chan HashJob, harr *HashArray, wg *sync.WaitGroup) {
 	for hj := range jobs {
-		harr.nodeList[hj.idx].Hash = Do(hj.data)
+		harr.nodeList[hj.idx].Val = Do(hj.data)
 	}
 	wg.Done()
 }
@@ -67,9 +67,9 @@ func (harr *HashArray) BuildTree() *mtree.MTree {
 		for i := 0; i < curLen-1; i += 2 {
 			nL := harr.nodeList[i]
 			nR := harr.nodeList[i+1]
-			copy(ch[:32], nL.Hash)
-			copy(ch[32:], nR.Hash)
-			parent := mtree.NewNode(Do(ch), &nL, &nR)
+			copy(ch[:32], nL.ComputeHash())
+			copy(ch[32:], nR.ComputeHash())
+			parent := mtree.NewNode(ch, &nL, &nR)
 			harr.nodeList[i/2] = parent
 		}
 		if curLen%2 == 1 {
@@ -82,7 +82,10 @@ func (harr *HashArray) BuildTree() *mtree.MTree {
 	nL := harr.nodeList[0]
 	nR := harr.nodeList[1]
 
-	ch2 := catHash(nL.Hash, nR.Hash)
+	ch2 := make([]byte, 64)
+	copy(ch[:32], nL.ComputeHash())
+	copy(ch[32:], nR.ComputeHash())
+	// ch2 := catHash(nL.GetHash(), nR.GetHash())
 	btr := mtree.NewNode(ch2, &nL, &nR)
 	bt.Root = &btr
 	return bt

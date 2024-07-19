@@ -7,17 +7,19 @@ import (
 )
 
 type Node struct {
-	// Hash of the data for the given segment
-	Hash  []byte
+	// Val of the data for the given segment
+	Val   []byte
 	left  *Node
 	right *Node
+	// Caches the cache value so it doesn't need to be recomputed.
+	// hashedVal []byte
 	// Depth of the node (how many layers are below it). Used to speed up insertion.
 	depth int
 }
 
 func NewNode(hash []byte, left, right *Node) Node {
 	return Node{
-		Hash:  hash,
+		Val:   hash,
 		left:  left,
 		right: right,
 	}
@@ -62,14 +64,18 @@ func (n *Node) depthBalance() (int, bool) {
 	return 0, false
 }
 
-// catHash concatenates the given hashes
-// (padding if one is smaller) and returns
-// a hash of the concatenated values.
-func catHash(h1, h2 []byte) []byte {
-	catHash := make([]byte, 64)
-	copy(catHash[:32], h1)
-	copy(catHash[32:], h2)
-	return doHash(catHash)
+func (n Node) ComputeHash() []byte {
+	if n.isLeaf() {
+		return n.Val
+	}
+	return doHash(n.Val)
+}
+
+func cat(h1, h2 []byte) []byte {
+	cat := make([]byte, 64)
+	copy(cat[:32], h1)
+	copy(cat[32:], h2)
+	return cat
 }
 
 // add inserts a leaf to the current node structure
@@ -77,10 +83,10 @@ func catHash(h1, h2 []byte) []byte {
 func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 	if n.isBalanced() {
 		newParent = &Node{
-			Hash: catHash(n.Hash, hashVal),
+			Val:  cat(n.ComputeHash(), hashVal),
 			left: n,
 			right: &Node{
-				Hash:  hashVal,
+				Val:   hashVal,
 				depth: 1,
 			},
 		}
@@ -92,7 +98,7 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 	if newP, ok := n.right.add(hashVal); ok {
 		n.right = newP
 	}
-	n.Hash = catHash(n.left.Hash, n.right.Hash)
+	n.Val = cat(n.left.ComputeHash(), n.right.ComputeHash())
 	return nil, false
 }
 
@@ -101,9 +107,9 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 func (n Node) sRec(depth int) string {
 	str := strings.Repeat("—", depth)
 	if n.isLeaf() {
-		str += "——Node with val [" + base64.StdEncoding.EncodeToString(n.Hash[:]) + "]"
+		str += "——Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
 	} else {
-		str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Hash[:]) + "]"
+		str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
 	}
 	if n.left != nil {
 		str += fmt.Sprintf("\n" + n.left.sRec(depth+1))
@@ -113,3 +119,22 @@ func (n Node) sRec(depth int) string {
 	}
 	return str
 }
+
+//
+// func (n Node) toArray(arr [][]byte) {
+// 	arr = append(arr, n.Hash)
+// 	hasLeft := n.left != nil
+// 	hasRight := n.right != nil
+// 	if hasLeft {
+// 		arr = append(arr, n.left.Hash)
+// 	}
+// 	if hasRight {
+// 		arr = append(arr, n.right.Hash)
+// 	}
+// 	if hasLeft {
+// 		n.left.toArray(arr)
+// 	}
+// 	if hasRight {
+// 		n.right.toArray(arr)
+// 	}
+// }

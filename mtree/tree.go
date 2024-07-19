@@ -19,7 +19,11 @@ func New() *MTree {
 
 func (b MTree) RootHash() []byte {
 	if b.Root != nil {
-		return b.Root.Hash
+		if b.Root.left != nil {
+			return b.Root.ComputeHash()
+		} else {
+			return b.Root.Val
+		}
 	}
 	return []byte{}
 }
@@ -30,7 +34,7 @@ func (bt *MTree) AddData(val []byte) {
 	hashVal := doHash(val)
 	if bt.Root == nil {
 		bt.Root = &Node{
-			Hash:  hashVal,
+			Val:   hashVal,
 			depth: 1,
 		}
 	} else if newP, ok := bt.Root.add(hashVal); ok {
@@ -46,3 +50,7 @@ func (bt MTree) String() string {
 	}
 	return "Empty Tree"
 }
+
+// func (bt MTree) ToArray() []Node {
+//
+// }

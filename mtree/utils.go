@@ -9,16 +9,16 @@ import (
 
 func CompareTrees(t1, t2 *MTree) {
 	// fmt.Println(cmpNodes(t1.Root, t2.Root, 0))
-	fmt.Printf("Root hash matches: %t\n", slices.Equal(t1.Root.Hash, t2.Root.Hash))
+	fmt.Printf("Root hash matches: %t\n", slices.Equal(t1.Root.Val, t2.Root.Val))
 }
 
 func cmpNodes(n1, n2 *Node, depth int) string {
 	str := strings.Repeat("-", depth)
-	slicesEqual := slices.Equal(n1.Hash, n2.Hash)
+	slicesEqual := slices.Equal(n1.Val, n2.Val)
 	if slicesEqual {
-		str += "[•]" + base64.StdEncoding.EncodeToString(n1.Hash[:])
+		str += "[•]" + base64.StdEncoding.EncodeToString(n1.Val[:])
 	} else {
-		str += "[x]" + base64.StdEncoding.EncodeToString(n1.Hash[:]) + " | " + base64.StdEncoding.EncodeToString(n2.Hash[:])
+		str += "[x]" + base64.StdEncoding.EncodeToString(n1.Val[:]) + " | " + base64.StdEncoding.EncodeToString(n2.Val[:])
 	}
 	if n1.left != nil && n2.left != nil {
 		str += fmt.Sprintf("\n" + cmpNodes(n1.left, n2.left, depth+1))

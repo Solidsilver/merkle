@@ -35,9 +35,9 @@ func main() {
 	var bt *mtree.MTree
 	var err error
 	if *ver == "b" {
-		bt, err = verify.HashFileHarr(*filePath, 2048)
+		bt, err = verify.HashFileHarr(*filePath, 1024)
 	} else {
-		bt, err = verify.HashFileLargeReadBuffer(*filePath, 2048)
+		bt, err = verify.HashFileLargeReadBuffer(*filePath, 1024)
 	}
 	if err != nil {
 		fmt.Println("Error hashing file:", err.Error())
