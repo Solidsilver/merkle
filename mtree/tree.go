@@ -19,7 +19,7 @@ func New() *MTree {
 
 func (b MTree) RootHash() []byte {
 	if b.Root != nil {
-		if b.Root.left != nil {
+		if !b.Root.isLeaf() {
 			return b.Root.ComputeHash()
 		} else {
 			return b.Root.Val
@@ -51,6 +51,17 @@ func (bt MTree) String() string {
 	return "Empty Tree"
 }
 
-// func (bt MTree) ToArray() []Node {
-//
-// }
+func (bt MTree) ToArray() [][]byte {
+	return bt.Root.toArray(true)
+}
+
+func FromArray(arr [][]byte) *MTree {
+	mt := New()
+	if len(arr) > 0 {
+		mt.Root = &Node{
+			Val: arr[0],
+		}
+		mt.Root.fromArray(arr, 1)
+	}
+	return mt
+}

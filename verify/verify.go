@@ -94,8 +94,10 @@ func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
 			fmt.Println(err.Error())
 			return nil, err
 		}
-		bt.AddData(chunk)
-		bar.Add(bytesRead)
+		if bytesRead != 0 {
+			bt.AddData(chunk)
+			bar.Add(bytesRead)
+		}
 	}
 
 	return bt, nil
@@ -147,8 +149,10 @@ func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
 			fmt.Println(err.Error())
 			return nil, err
 		}
-		harr.QueueHashInsert(chunk, jobs)
-		bar.Add(bytesRead)
+		if bytesRead != 0 {
+			harr.QueueHashInsert(chunk, jobs)
+			bar.Add(bytesRead)
+		}
 	}
 	close(jobs)
 	wg.Wait()
@@ -162,6 +166,7 @@ func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
 			bar.Add(1)
 			time.Sleep(50 * time.Millisecond)
 		}
+		fmt.Println("Done Building Tree")
 	}()
 	bt := harr.BuildTree()
 	isLoading = false

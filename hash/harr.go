@@ -1,7 +1,10 @@
 package hash
 
 import (
+	"encoding/base64"
+	"fmt"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/Solidsilver/merkle/mtree"
@@ -62,15 +65,16 @@ func (harr *HashArray) BuildTree() *mtree.MTree {
 		return bt
 	}
 	newLen := int(math.Ceil(float64(curLen) / 2))
-	ch := make([]byte, 64)
 	for newLen > 1 {
 		for i := 0; i < curLen-1; i += 2 {
+			ch := make([]byte, 64)
 			nL := harr.nodeList[i]
 			nR := harr.nodeList[i+1]
 			copy(ch[:32], nL.ComputeHash())
 			copy(ch[32:], nR.ComputeHash())
 			parent := mtree.NewNode(ch, &nL, &nR)
-			harr.nodeList[i/2] = parent
+			parentIdx := i / 2
+			harr.nodeList[parentIdx] = parent
 		}
 		if curLen%2 == 1 {
 			harr.nodeList[newLen-1] = harr.nodeList[curLen-1]
@@ -82,11 +86,23 @@ func (harr *HashArray) BuildTree() *mtree.MTree {
 	nL := harr.nodeList[0]
 	nR := harr.nodeList[1]
 
-	ch2 := make([]byte, 64)
+	ch := make([]byte, 64)
 	copy(ch[:32], nL.ComputeHash())
 	copy(ch[32:], nR.ComputeHash())
-	// ch2 := catHash(nL.GetHash(), nR.GetHash())
-	btr := mtree.NewNode(ch2, &nL, &nR)
+	btr := mtree.NewNode(ch, &nL, &nR)
 	bt.Root = &btr
 	return bt
+}
+
+func printNodeArray(narr []mtree.Node) {
+	strArr := make([]string, len(narr))
+	for idx, node := range narr {
+		strArr[idx] = base64.StdEncoding.EncodeToString(node.Val)
+	}
+	fmt.Println("------")
+	fmt.Print("[")
+	fmt.Print(strings.Join(strArr, ", "))
+
+	fmt.Println("]")
+	fmt.Println("------")
 }

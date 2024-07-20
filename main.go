@@ -43,6 +43,12 @@ func main() {
 		fmt.Println("Error hashing file:", err.Error())
 	}
 	rootHash := bt.RootHash()
+	// fmt.Println()
+	// tArr := bt.ToArray()
+	// bt2 := mtree.FromArray(tArr)
+	// fmt.Println(bt2.String())
+	// fmt.Println()
+
 	hexHash := hex.EncodeToString(rootHash[:])
 	fmt.Printf("\nhash: %s\nfile: %s\n", hexHash, *filePath)
 }

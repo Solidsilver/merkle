@@ -71,6 +71,10 @@ func (n Node) ComputeHash() []byte {
 	return doHash(n.Val)
 }
 
+func (n Node) String() string {
+	return base64.StdEncoding.EncodeToString(n.Val)
+}
+
 func cat(h1, h2 []byte) []byte {
 	cat := make([]byte, 64)
 	copy(cat[:32], h1)
@@ -120,21 +124,36 @@ func (n Node) sRec(depth int) string {
 	return str
 }
 
-//
-// func (n Node) toArray(arr [][]byte) {
-// 	arr = append(arr, n.Hash)
-// 	hasLeft := n.left != nil
-// 	hasRight := n.right != nil
-// 	if hasLeft {
-// 		arr = append(arr, n.left.Hash)
-// 	}
-// 	if hasRight {
-// 		arr = append(arr, n.right.Hash)
-// 	}
-// 	if hasLeft {
-// 		n.left.toArray(arr)
-// 	}
-// 	if hasRight {
-// 		n.right.toArray(arr)
-// 	}
-// }
+func (n Node) toArray(isRoot ...bool) [][]byte {
+	arr := [][]byte{}
+	if len(isRoot) > 0 {
+		arr = append(arr, n.Val)
+	}
+
+	if !n.isLeaf() {
+		arr = append(arr, n.left.Val, n.right.Val)
+		arr = append(arr, n.left.toArray()...)
+		arr = append(arr, n.right.toArray()...)
+	}
+	return arr
+}
+
+func (cur *Node) fromArray(arr [][]byte, curIdx int) int {
+	if len(arr) > curIdx {
+		cur.left = &Node{
+			Val: arr[curIdx],
+		}
+		cur.right = &Node{
+			Val: arr[curIdx+1],
+		}
+		curIdx += 2
+		if len(cur.left.Val) == 64 {
+			curIdx = cur.left.fromArray(arr, curIdx)
+		}
+		if len(cur.right.Val) == 64 {
+			curIdx = cur.right.fromArray(arr, curIdx)
+		}
+		return curIdx
+	}
+	return curIdx
+}
