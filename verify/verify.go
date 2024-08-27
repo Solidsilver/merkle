@@ -18,8 +18,8 @@ const GB_IN_BYTES = 1073741824
 
 // HashFile hashes file using typical tree insertion
 // It uses default file read buffer size
-func HashFile(path string, splitSize int) (*mtree.MTree, error) {
-	bt := mtree.New()
+func HashFile(path string, splitSize int) (*mtree.Tree, error) {
+	bt := mtree.NewEmpty()
 
 	openFile, err := os.Open(path)
 	if err != nil {
@@ -58,8 +58,8 @@ func HashFile(path string, splitSize int) (*mtree.MTree, error) {
 
 // HashFileLargeReadBuffer hashes file using typical tree insertion
 // It uses up to a 1G file read buffer size
-func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
-	bt := mtree.New()
+func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.Tree, error) {
+	bt := mtree.NewEmpty()
 
 	openFile, err := os.Open(path)
 	if err != nil {
@@ -107,7 +107,7 @@ func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
 // leaves, then building the tree from
 // the leaves up. This uses up to a 1G
 // file read buffer.
-func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
+func HashFileHarr(path string, splitSize int) (*mtree.Tree, error) {
 	openFile, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func HashFileCmp(path string, splitSize int) error {
 	if err != nil {
 		return err
 	}
-	iterBuiltTree := mtree.New()
+	iterBuiltTree := mtree.NewEmpty()
 	fileSize := stat.Size()
 	fmt.Printf("File size is %d bytes\n", fileSize)
 	harrSize := int(math.Ceil(float64(fileSize) / float64(splitSize)))

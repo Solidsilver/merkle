@@ -57,8 +57,8 @@ func (harr *HashArray) QueueHashInsert(val []byte, jobs chan HashJob) {
 // BuildTree creates a MTree using
 // an array of nodes as the leaves
 // and building up from there
-func (harr *HashArray) BuildTree() *mtree.MTree {
-	bt := mtree.New()
+func (harr *HashArray) BuildTree() *mtree.Tree {
+	bt := mtree.NewEmpty()
 	curLen := len(harr.nodeList)
 	if curLen == 1 {
 		bt.Root = &harr.nodeList[0]
@@ -72,7 +72,19 @@ func (harr *HashArray) BuildTree() *mtree.MTree {
 			nR := harr.nodeList[i+1]
 			copy(ch[:32], nL.ComputeHash())
 			copy(ch[32:], nR.ComputeHash())
+
 			parent := mtree.NewNode(ch, &nL, &nR)
+
+			// var parent mtree.Node
+			// if nL.IsLeaf() && nR.IsLeaf() {
+			// 	parent = mtree.NewNode(ch, nil, nil)
+			// } else if nL.IsLeaf() {
+			// 	parent = mtree.NewNode(ch, nil, &nR)
+			// } else if nR.IsLeaf() {
+			// 	parent = mtree.NewNode(ch, &nL, nil)
+			// } else {
+			// 	parent = mtree.NewNode(ch, &nL, &nR)
+			// }
 			parentIdx := i / 2
 			harr.nodeList[parentIdx] = parent
 		}

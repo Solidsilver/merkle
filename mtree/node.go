@@ -1,6 +1,7 @@
 package mtree
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -9,24 +10,24 @@ import (
 type Node struct {
 	// Val of the data for the given segment
 	Val   []byte
-	left  *Node
-	right *Node
+	Left  *Node
+	Right *Node
 	// Caches the cache value so it doesn't need to be recomputed.
 	// hashedVal []byte
 	// Depth of the node (how many layers are below it). Used to speed up insertion.
 	depth int
 }
 
-func NewNode(hash []byte, left, right *Node) Node {
+func NewNode(val []byte, left, right *Node) Node {
 	return Node{
-		Val:   hash,
-		left:  left,
-		right: right,
+		Val:   val,
+		Left:  left,
+		Right: right,
 	}
 }
 
-func (n Node) isLeaf() bool {
-	return n.left == nil && n.right == nil
+func (n Node) IsLeaf() bool {
+	return n.Left == nil && n.Right == nil
 }
 
 // isBalanced returns the balance
@@ -35,9 +36,9 @@ func (n *Node) isBalanced() bool {
 	if n.depth != 0 {
 		return true
 	}
-	depR, balR := n.right.depthBalance()
+	depR, balR := n.Right.depthBalance()
 	if balR {
-		depL, _ := n.left.depthBalance()
+		depL, _ := n.Left.depthBalance()
 		if depL == depR {
 			n.depth = 1 + depR
 			return true
@@ -53,9 +54,9 @@ func (n *Node) depthBalance() (int, bool) {
 	if n.depth != 0 {
 		return n.depth, true
 	}
-	depthR, balR := n.right.depthBalance()
+	depthR, balR := n.Right.depthBalance()
 	if balR {
-		depthL, _ := n.left.depthBalance()
+		depthL, _ := n.Left.depthBalance()
 		if depthL == depthR {
 			n.depth = 1 + depthR
 			return n.depth, true
@@ -65,7 +66,7 @@ func (n *Node) depthBalance() (int, bool) {
 }
 
 func (n Node) ComputeHash() []byte {
-	if n.isLeaf() {
+	if n.IsLeaf() {
 		return n.Val
 	}
 	return doHash(n.Val)
@@ -88,8 +89,8 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 	if n.isBalanced() {
 		newParent = &Node{
 			Val:  cat(n.ComputeHash(), hashVal),
-			left: n,
-			right: &Node{
+			Left: n,
+			Right: &Node{
 				Val:   hashVal,
 				depth: 1,
 			},
@@ -99,10 +100,10 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 		}
 		return newParent, true
 	}
-	if newP, ok := n.right.add(hashVal); ok {
-		n.right = newP
+	if newP, ok := n.Right.add(hashVal); ok {
+		n.Right = newP
 	}
-	n.Val = cat(n.left.ComputeHash(), n.right.ComputeHash())
+	n.Val = cat(n.Left.ComputeHash(), n.Right.ComputeHash())
 	return nil, false
 }
 
@@ -110,50 +111,51 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 // of the given node and it's children recursively
 func (n Node) sRec(depth int) string {
 	str := strings.Repeat("—", depth)
-	if n.isLeaf() {
+	if n.IsLeaf() {
 		str += "——Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
 	} else {
-		str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
+		str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:32]) + "|" + base64.StdEncoding.EncodeToString(n.Val[32:]) + "]"
 	}
-	if n.left != nil {
-		str += fmt.Sprintf("\n" + n.left.sRec(depth+1))
+	// if !n.IsLeaf() {
+	// 	str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
+	// }
+	if n.Left != nil {
+		str += fmt.Sprintf("\n" + n.Left.sRec(depth+1))
 	}
-	if n.right != nil {
-		str += fmt.Sprintf("\n" + n.right.sRec(depth+1))
+	if n.Right != nil {
+		str += fmt.Sprintf("\n" + n.Right.sRec(depth+1))
 	}
 	return str
 }
 
-func (n Node) toArray(isRoot ...bool) [][]byte {
-	arr := [][]byte{}
-	if len(isRoot) > 0 {
-		arr = append(arr, n.Val)
+func (cur *Node) trimLeaves() {
+	if cur.Left != nil {
+		if cur.Left.IsLeaf() {
+			cur.Left = nil
+		} else {
+			cur.Left.trimLeaves()
+		}
 	}
-
-	if !n.isLeaf() {
-		arr = append(arr, n.left.Val, n.right.Val)
-		arr = append(arr, n.left.toArray()...)
-		arr = append(arr, n.right.toArray()...)
+	if cur.Right != nil {
+		if cur.Right.IsLeaf() {
+			cur.Right = nil
+		} else {
+			cur.Right.trimLeaves()
+		}
 	}
-	return arr
 }
 
-func (cur *Node) fromArray(arr [][]byte, curIdx int) int {
-	if len(arr) > curIdx {
-		cur.left = &Node{
-			Val: arr[curIdx],
-		}
-		cur.right = &Node{
-			Val: arr[curIdx+1],
-		}
-		curIdx += 2
-		if len(cur.left.Val) == 64 {
-			curIdx = cur.left.fromArray(arr, curIdx)
-		}
-		if len(cur.right.Val) == 64 {
-			curIdx = cur.right.fromArray(arr, curIdx)
-		}
-		return curIdx
+func (n *Node) deepEqual(n2 *Node) bool {
+	if !bytes.Equal(n.Val, n2.Val) {
+		return false
 	}
-	return curIdx
+	leftMatch, rightMatch := true, true
+	if n.Left != nil && n2.Left != nil {
+		leftMatch = n.Left.deepEqual(n2.Left)
+	}
+	if leftMatch && n.Right != nil && n2.Right != nil {
+		rightMatch = n.Right.deepEqual(n2.Right)
+	}
+
+	return rightMatch && leftMatch
 }
