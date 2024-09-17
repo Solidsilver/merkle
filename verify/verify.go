@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/Solidsilver/merkle/hash"
 	"github.com/Solidsilver/merkle/mtree"
@@ -17,8 +18,8 @@ const GB_IN_BYTES = 1073741824
 
 // HashFile hashes file using typical tree insertion
 // It uses default file read buffer size
-func HashFile(path string, splitSize int) (*mtree.MTree, error) {
-	bt := mtree.New()
+func HashFile(path string, splitSize int) (*mtree.Tree, error) {
+	bt := mtree.NewEmpty()
 
 	openFile, err := os.Open(path)
 	if err != nil {
@@ -57,8 +58,8 @@ func HashFile(path string, splitSize int) (*mtree.MTree, error) {
 
 // HashFileLargeReadBuffer hashes file using typical tree insertion
 // It uses up to a 1G file read buffer size
-func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
-	bt := mtree.New()
+func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.Tree, error) {
+	bt := mtree.NewEmpty()
 
 	openFile, err := os.Open(path)
 	if err != nil {
@@ -93,8 +94,10 @@ func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
 			fmt.Println(err.Error())
 			return nil, err
 		}
-		bt.AddData(chunk)
-		bar.Add(bytesRead)
+		if bytesRead != 0 {
+			bt.AddData(chunk)
+			bar.Add(bytesRead)
+		}
 	}
 
 	return bt, nil
@@ -104,7 +107,7 @@ func HashFileLargeReadBuffer(path string, splitSize int) (*mtree.MTree, error) {
 // leaves, then building the tree from
 // the leaves up. This uses up to a 1G
 // file read buffer.
-func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
+func HashFileHarr(path string, splitSize int) (*mtree.Tree, error) {
 	openFile, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -146,12 +149,27 @@ func HashFileHarr(path string, splitSize int) (*mtree.MTree, error) {
 			fmt.Println(err.Error())
 			return nil, err
 		}
-		harr.QueueHashInsert(chunk, jobs)
-		bar.Add(bytesRead)
+		if bytesRead != 0 {
+			harr.QueueHashInsert(chunk, jobs)
+			bar.Add(bytesRead)
+		}
 	}
 	close(jobs)
 	wg.Wait()
+	fmt.Println()
+	bar = pb.NewOptions(-1,
+		pb.OptionSetDescription("Building tree"),
+	)
+	isLoading := true
+	go func() {
+		for isLoading {
+			bar.Add(1)
+			time.Sleep(50 * time.Millisecond)
+		}
+		fmt.Println("Done Building Tree")
+	}()
 	bt := harr.BuildTree()
+	isLoading = false
 
 	return bt, nil
 }
@@ -169,7 +187,7 @@ func HashFileCmp(path string, splitSize int) error {
 	if err != nil {
 		return err
 	}
-	iterBuiltTree := mtree.New()
+	iterBuiltTree := mtree.NewEmpty()
 	fileSize := stat.Size()
 	fmt.Printf("File size is %d bytes\n", fileSize)
 	harrSize := int(math.Ceil(float64(fileSize) / float64(splitSize)))

@@ -1,30 +1,33 @@
 package mtree
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"strings"
 )
 
 type Node struct {
-	// Hash of the data for the given segment
-	Hash  []byte
-	left  *Node
-	right *Node
+	// Val of the data for the given segment
+	Val   []byte
+	Left  *Node
+	Right *Node
+	// Caches the cache value so it doesn't need to be recomputed.
+	// hashedVal []byte
 	// Depth of the node (how many layers are below it). Used to speed up insertion.
 	depth int
 }
 
-func NewNode(hash []byte, left, right *Node) Node {
+func NewNode(val []byte, left, right *Node) Node {
 	return Node{
-		Hash:  hash,
-		left:  left,
-		right: right,
+		Val:   val,
+		Left:  left,
+		Right: right,
 	}
 }
 
-func (n Node) isLeaf() bool {
-	return n.left == nil && n.right == nil
+func (n Node) IsLeaf() bool {
+	return n.Left == nil && n.Right == nil
 }
 
 // isBalanced returns the balance
@@ -33,9 +36,9 @@ func (n *Node) isBalanced() bool {
 	if n.depth != 0 {
 		return true
 	}
-	depR, balR := n.right.depthBalance()
+	depR, balR := n.Right.depthBalance()
 	if balR {
-		depL, _ := n.left.depthBalance()
+		depL, _ := n.Left.depthBalance()
 		if depL == depR {
 			n.depth = 1 + depR
 			return true
@@ -51,9 +54,9 @@ func (n *Node) depthBalance() (int, bool) {
 	if n.depth != 0 {
 		return n.depth, true
 	}
-	depthR, balR := n.right.depthBalance()
+	depthR, balR := n.Right.depthBalance()
 	if balR {
-		depthL, _ := n.left.depthBalance()
+		depthL, _ := n.Left.depthBalance()
 		if depthL == depthR {
 			n.depth = 1 + depthR
 			return n.depth, true
@@ -62,14 +65,22 @@ func (n *Node) depthBalance() (int, bool) {
 	return 0, false
 }
 
-// catHash concatenates the given hashes
-// (padding if one is smaller) and returns
-// a hash of the concatenated values.
-func catHash(h1, h2 []byte) []byte {
-	catHash := make([]byte, 64)
-	copy(catHash[:32], h1)
-	copy(catHash[32:], h2)
-	return doHash(catHash)
+func (n Node) ComputeHash() []byte {
+	if n.IsLeaf() {
+		return n.Val
+	}
+	return doHash(n.Val)
+}
+
+func (n Node) String() string {
+	return base64.StdEncoding.EncodeToString(n.Val)
+}
+
+func cat(h1, h2 []byte) []byte {
+	cat := make([]byte, 64)
+	copy(cat[:32], h1)
+	copy(cat[32:], h2)
+	return cat
 }
 
 // add inserts a leaf to the current node structure
@@ -77,10 +88,10 @@ func catHash(h1, h2 []byte) []byte {
 func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 	if n.isBalanced() {
 		newParent = &Node{
-			Hash: catHash(n.Hash, hashVal),
-			left: n,
-			right: &Node{
-				Hash:  hashVal,
+			Val:  cat(n.ComputeHash(), hashVal),
+			Left: n,
+			Right: &Node{
+				Val:   hashVal,
 				depth: 1,
 			},
 		}
@@ -89,10 +100,10 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 		}
 		return newParent, true
 	}
-	if newP, ok := n.right.add(hashVal); ok {
-		n.right = newP
+	if newP, ok := n.Right.add(hashVal); ok {
+		n.Right = newP
 	}
-	n.Hash = catHash(n.left.Hash, n.right.Hash)
+	n.Val = cat(n.Left.ComputeHash(), n.Right.ComputeHash())
 	return nil, false
 }
 
@@ -100,16 +111,51 @@ func (n *Node) add(hashVal []byte) (newParent *Node, hasNewParent bool) {
 // of the given node and it's children recursively
 func (n Node) sRec(depth int) string {
 	str := strings.Repeat("—", depth)
-	if n.isLeaf() {
-		str += "——Node with val [" + base64.StdEncoding.EncodeToString(n.Hash[:]) + "]"
+	if n.IsLeaf() {
+		str += "——Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
 	} else {
-		str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Hash[:]) + "]"
+		str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:32]) + "|" + base64.StdEncoding.EncodeToString(n.Val[32:]) + "]"
 	}
-	if n.left != nil {
-		str += fmt.Sprintf("\n" + n.left.sRec(depth+1))
+	// if !n.IsLeaf() {
+	// 	str += "|-Node with val [" + base64.StdEncoding.EncodeToString(n.Val[:]) + "]"
+	// }
+	if n.Left != nil {
+		str += fmt.Sprintf("\n" + n.Left.sRec(depth+1))
 	}
-	if n.right != nil {
-		str += fmt.Sprintf("\n" + n.right.sRec(depth+1))
+	if n.Right != nil {
+		str += fmt.Sprintf("\n" + n.Right.sRec(depth+1))
 	}
 	return str
+}
+
+func (cur *Node) trimLeaves() {
+	if cur.Left != nil {
+		if cur.Left.IsLeaf() {
+			cur.Left = nil
+		} else {
+			cur.Left.trimLeaves()
+		}
+	}
+	if cur.Right != nil {
+		if cur.Right.IsLeaf() {
+			cur.Right = nil
+		} else {
+			cur.Right.trimLeaves()
+		}
+	}
+}
+
+func (n *Node) deepEqual(n2 *Node) bool {
+	if !bytes.Equal(n.Val, n2.Val) {
+		return false
+	}
+	leftMatch, rightMatch := true, true
+	if n.Left != nil && n2.Left != nil {
+		leftMatch = n.Left.deepEqual(n2.Left)
+	}
+	if leftMatch && n.Right != nil && n2.Right != nil {
+		rightMatch = n.Right.deepEqual(n2.Right)
+	}
+
+	return rightMatch && leftMatch
 }

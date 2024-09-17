@@ -6,3 +6,10 @@
 
 # VSCode
 .vscode/
+
+
+# Test files:
+tmp_*
+
+
+.DS_Store/

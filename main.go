@@ -1,7 +1,8 @@
 package main
 
 import (
-	"encoding/hex"
+	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -15,7 +16,7 @@ import (
 var (
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	filePath   = flag.String("f", "", "write cpu profile to file")
-	ver        = flag.String("v", "a", "do the thing")
+	ver        = flag.String("v", "harr", "Specify file hashing strategy. Use 'old' for tree insertion strategy.")
 )
 
 func main() {
@@ -32,17 +33,31 @@ func main() {
 	if *filePath == "" {
 		log.Fatal("You must include a file to hash using the -f parameter. Ex: go run main.go -f <filepath>")
 	}
-	var bt *mtree.MTree
+	if _, err := os.Stat(*filePath); errors.Is(err, os.ErrNotExist) {
+		log.Fatal("File does not exist.")
+		return
+		// path/to/whatever does not exist
+	}
+	var controlTree *mtree.Tree
 	var err error
-	if *ver == "b" {
-		bt, err = verify.HashFileHarr(*filePath, 2048)
+	if *ver == "harr" {
+		controlTree, err = verify.HashFileHarr(*filePath, 1024)
 	} else {
-		bt, err = verify.HashFileLargeReadBuffer(*filePath, 2048)
+		controlTree, err = verify.HashFileLargeReadBuffer(*filePath, 1024)
 	}
 	if err != nil {
 		fmt.Println("Error hashing file:", err.Error())
 	}
-	rootHash := bt.RootHash()
-	hexHash := hex.EncodeToString(rootHash[:])
-	fmt.Printf("\nhash: %s\nfile: %s\n", hexHash, *filePath)
+	// rootHash := bt.RootHash()
+	// fmt.Println()
+	// controlTree.TrimLeaves()
+	// tArr := controlTree.ToArray()
+	// treeFromArr, err := mtree.FromArray(tArr)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	// fmt.Println("Comparing trees...")
+	// fmt.Printf("Trees are equal: %t", mtree.DeepEquals(controlTree, treeFromArr))
+	fmt.Printf("\nHash: %s\n", base64.RawStdEncoding.EncodeToString(controlTree.RootHash()))
 }
