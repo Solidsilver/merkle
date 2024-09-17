@@ -34,6 +34,9 @@ func cmpNodes(n1, n2 *Node, depth int) string {
 	return str
 }
 
+// DeepEquals compates two trees starting at the root node, and recursively comparing all children.
+// This only needs to be used for testing or tree manipulation.
+// Otherwise, comparing root nodes is sufficient.
 func DeepEquals(t1, t2 *Tree) bool {
 	if t1.Root != nil && t2.Root != nil {
 		return t1.Root.deepEqual(t2.Root)

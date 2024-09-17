@@ -41,32 +41,32 @@ func main() {
 
 	router := http.NewServeMux()
 
-	router.HandleFunc("GET /getFileChunk", func(w http.ResponseWriter, r *http.Request) {
-		rangeHeader := r.Header.Get("Range")
+	router.HandleFunc("GET /getFileChunk", func(respW http.ResponseWriter, req *http.Request) {
+		rangeHeader := req.Header.Get("Range")
 		if rangeHeader == "" {
-			http.Error(w, "No range header", http.StatusInternalServerError)
+			http.Error(respW, "No range header", http.StatusInternalServerError)
 		}
-		parsedRange, err := parseRangeHeader(rangeHeader, len(inMemFile))
+		fileRange, err := parseRangeHeader(rangeHeader, len(inMemFile))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		fmt.Printf("Fetching range %d-%d\n", parsedRange.start, parsedRange.end)
-		retBytes := inMemFile[parsedRange.start:parsedRange.end]
+		fmt.Printf("Fetching range %d-%d\n", fileRange.start, fileRange.end)
+		retBytes := inMemFile[fileRange.start:fileRange.end]
 		fmt.Println("sending bytes")
-		w.Write(retBytes)
+		respW.Write(retBytes)
 	})
 
-	router.HandleFunc("GET /getHash", func(w http.ResponseWriter, r *http.Request) {
-		mt, err := hashBytes(inMemFile)
+	router.HandleFunc("GET /getHash", func(respW http.ResponseWriter, req *http.Request) {
+		tree, err := hashBytes(inMemFile)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		mt.TrimLeaves()
-		tArr := mt.SerializeToArray()
+		tree.TrimLeaves()
+		tArr := tree.ToArray()
 		fmt.Println("--- tArr ---")
 		for i := 0; i < len(tArr); i += 64 {
 			fmt.Println(base64.StdEncoding.EncodeToString(tArr[i:i+32]) + "|" + base64.StdEncoding.EncodeToString(tArr[i+32:i+64]))
@@ -74,7 +74,12 @@ func main() {
 		fmt.Println("--- tArr end ---")
 		// w.Header().Add("Content-Type", "application/octet-stream")
 
-		w.Write(tArr)
+		respW.Write(tArr)
+	})
+
+	router.HandleFunc("GET /fileInfo/{id}", func(respW http.ResponseWriter, req *http.Request) {
+		fileId := req.PathValue("id")
+		fmt.Println("Fetching file info for", fileId)
 	})
 	fmt.Printf("Serving on port %d\n", port)
 	http.ListenAndServe(fmt.Sprintf(":%d", port), makeGzipHandler(router))

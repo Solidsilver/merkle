@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -14,7 +16,7 @@ import (
 var (
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	filePath   = flag.String("f", "", "write cpu profile to file")
-	ver        = flag.String("v", "a", "do the thing")
+	ver        = flag.String("v", "harr", "Specify file hashing strategy. Use 'old' for tree insertion strategy.")
 )
 
 func main() {
@@ -31,9 +33,14 @@ func main() {
 	if *filePath == "" {
 		log.Fatal("You must include a file to hash using the -f parameter. Ex: go run main.go -f <filepath>")
 	}
+	if _, err := os.Stat(*filePath); errors.Is(err, os.ErrNotExist) {
+		log.Fatal("File does not exist.")
+		return
+		// path/to/whatever does not exist
+	}
 	var controlTree *mtree.Tree
 	var err error
-	if *ver == "b" {
+	if *ver == "harr" {
 		controlTree, err = verify.HashFileHarr(*filePath, 1024)
 	} else {
 		controlTree, err = verify.HashFileLargeReadBuffer(*filePath, 1024)
@@ -43,30 +50,14 @@ func main() {
 	}
 	// rootHash := bt.RootHash()
 	// fmt.Println()
-	controlTree.TrimLeaves()
-	tArr := controlTree.SerializeToArray()
-	// fmt.Println("--- tArr ---")
-	// for i := 0; i < len(tArr); i += 64 {
-	// 	fmt.Println(base64.StdEncoding.EncodeToString(tArr[i:i+32]) + "|" + base64.StdEncoding.EncodeToString(tArr[i+32:i+64]))
-	// }
-	// fmt.Println("--- tArr end ---")
-	treeFromArr, err := mtree.DeserializeFromArray(tArr)
+	// controlTree.TrimLeaves()
+	// tArr := controlTree.ToArray()
+	// treeFromArr, err := mtree.FromArray(tArr)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
-	// fmt.Println(hex.EncodeToString(bt2.RootHash()))
-	// fmt.Println(bt2.String())
-	// fmt.Println()
-
-	// hexHash := hex.EncodeToString(rootHash)
-	// fmt.Printf("\nhash: %s\nfile: %s\n", hexHash, *filePath)
-	fmt.Println("Comparison of trees:")
-	// fmt.Println("Tree 1 (control)")
-	// fmt.Println(bt.String())
-	// fmt.Println()
-	// fmt.Println("Tree 2 (fromArr)")
-	// fmt.Println(bt2.String())
-	// mtree.CompareTrees(bt, bt2)
-	fmt.Printf("Trees are equal: %t", mtree.DeepEquals(controlTree, treeFromArr))
+	// fmt.Println("Comparing trees...")
+	// fmt.Printf("Trees are equal: %t", mtree.DeepEquals(controlTree, treeFromArr))
+	fmt.Printf("\nHash: %s\n", base64.RawStdEncoding.EncodeToString(controlTree.RootHash()))
 }

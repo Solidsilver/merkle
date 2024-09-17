@@ -65,9 +65,9 @@ var (
 	nilMarker = make([]byte, 64)
 )
 
-// DeserializeFromArray converts an array of bytes produced by
-// 'SerializeToArray' back into a Merkle tree.
-func DeserializeFromArray(arr []byte) (*Tree, error) {
+// FromArray converts an array of bytes produced by
+// [ToArray] back into a Merkle tree.
+func FromArray(arr []byte) (*Tree, error) {
 	if len(arr)%chunkSize != 0 || len(arr) == 0 {
 		return nil, fmt.Errorf("Invalid array length, must be a multiple of 64 bytes, len(arr)=%d", len(arr)) // Invalid data length, must be a multiple of 64 bytes
 	}
@@ -103,10 +103,10 @@ func DeserializeFromArray(arr []byte) (*Tree, error) {
 	return newTree, nil
 }
 
-// SerializeToArray serializes a merkle tree
+// ToArray serializes a merkle tree
 // into an array-of-bytes representation.
-// Use 'DeserializeFromArray' to convert back into a tree
-func (t Tree) SerializeToArray() []byte {
+// Use [FromArray] to convert back into a tree.
+func (t Tree) ToArray() []byte {
 	queue := []*Node{t.Root}
 	arr := []byte{}
 

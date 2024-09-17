@@ -28,7 +28,7 @@ func main() {
 		return
 	}
 	fmt.Println("Got hash:\n", base64.RawStdEncoding.EncodeToString(bytes))
-	mt, err := mtree.DeserializeFromArray(bytes)
+	mt, err := mtree.FromArray(bytes)
 	if err != nil {
 		fmt.Println("Error deserializing array:", err.Error())
 		return
