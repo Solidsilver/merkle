@@ -14,9 +14,9 @@ import (
 // (padding if one is smaller) and returns
 // a hash of the concatenated values.
 func catHash(h1, h2 []byte) []byte {
-	catHash := make([]byte, 64)
-	copy(catHash[:32], h1)
-	copy(catHash[32:], h2)
+	catHash := make([]byte, HASH_SIZE)
+	copy(catHash[:HASH_SIZE], h1)
+	copy(catHash[HASH_SIZE:], h2)
 	return Do(catHash)
 }
 
@@ -54,6 +54,8 @@ func (harr *HashArray) QueueHashInsert(val []byte, jobs chan HashJob) {
 	harr.curNodeIdx++
 }
 
+var HASH_SIZE = 8
+
 // BuildTree creates a MTree using
 // an array of nodes as the leaves
 // and building up from there
@@ -67,11 +69,11 @@ func (harr *HashArray) BuildTree() *mtree.Tree {
 	newLen := int(math.Ceil(float64(curLen) / 2))
 	for newLen > 1 {
 		for i := 0; i < curLen-1; i += 2 {
-			ch := make([]byte, 64)
+			ch := make([]byte, HASH_SIZE*2)
 			nL := harr.nodeList[i]
 			nR := harr.nodeList[i+1]
-			copy(ch[:32], nL.ComputeHash())
-			copy(ch[32:], nR.ComputeHash())
+			copy(ch[:HASH_SIZE], nL.ComputeHash())
+			copy(ch[HASH_SIZE:], nR.ComputeHash())
 
 			parent := mtree.NewNode(ch, &nL, &nR)
 
@@ -98,9 +100,9 @@ func (harr *HashArray) BuildTree() *mtree.Tree {
 	nL := harr.nodeList[0]
 	nR := harr.nodeList[1]
 
-	ch := make([]byte, 64)
-	copy(ch[:32], nL.ComputeHash())
-	copy(ch[32:], nR.ComputeHash())
+	ch := make([]byte, HASH_SIZE*2)
+	copy(ch[:HASH_SIZE], nL.ComputeHash())
+	copy(ch[HASH_SIZE:], nR.ComputeHash())
 	btr := mtree.NewNode(ch, &nL, &nR)
 	bt.Root = &btr
 	return bt

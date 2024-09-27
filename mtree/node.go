@@ -76,10 +76,12 @@ func (n Node) String() string {
 	return base64.StdEncoding.EncodeToString(n.Val)
 }
 
+const HASH_SIZE = 8
+
 func cat(h1, h2 []byte) []byte {
-	cat := make([]byte, 64)
-	copy(cat[:32], h1)
-	copy(cat[32:], h2)
+	cat := make([]byte, HASH_SIZE*2)
+	copy(cat[:HASH_SIZE], h1)
+	copy(cat[HASH_SIZE:], h2)
 	return cat
 }
 

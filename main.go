@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -59,5 +59,7 @@ func main() {
 	}
 	// fmt.Println("Comparing trees...")
 	// fmt.Printf("Trees are equal: %t", mtree.DeepEquals(controlTree, treeFromArr))
-	fmt.Printf("\nHash: %s\n", base64.RawStdEncoding.EncodeToString(controlTree.RootHash()))
+	// fmt.Printf("\nHash: %s\n", base64.RawStdEncoding.EncodeToString(controlTree.RootHash()))
+	fmt.Printf("\nHash: %d\n", binary.LittleEndian.Uint64((controlTree.RootHash())))
+	fmt.Printf("Hash is %d bytes\n", len(controlTree.RootHash()))
 }

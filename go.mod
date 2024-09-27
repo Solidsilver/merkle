@@ -2,7 +2,10 @@ module github.com/Solidsilver/merkle
 
 go 1.22.0
 
-require github.com/schollz/progressbar/v3 v3.14.4
+require (
+	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/schollz/progressbar/v3 v3.14.4
+)
 
 require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect

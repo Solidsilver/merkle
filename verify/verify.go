@@ -125,7 +125,7 @@ func HashFileHarr(path string, splitSize int) (*mtree.Tree, error) {
 		pb.OptionShowElapsedTimeOnFinish(),
 		pb.OptionSetPredictTime(true),
 	)
-	readSize := GB_IN_BYTES
+	readSize := splitSize * 4
 	if fileSize < int64(readSize) {
 		readSize = int(fileSize)
 	}
@@ -154,6 +154,7 @@ func HashFileHarr(path string, splitSize int) (*mtree.Tree, error) {
 			bar.Add(bytesRead)
 		}
 	}
+	fmt.Println("\nDone reading file")
 	close(jobs)
 	wg.Wait()
 	fmt.Println()

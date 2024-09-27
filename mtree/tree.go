@@ -2,13 +2,20 @@ package mtree
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 func doHash(val []byte) []byte {
-	sum := sha256.Sum256(val)
-	return sum[:]
+	sum := make([]byte, 8)
+	binary.LittleEndian.PutUint64(sum, xxhash.Sum64(val))
+	// sum := sha256.Sum256(val)
+	// return sum[:]
+	return sum
+	// sum := sha256.Sum256(val)
+	// return sum[:]
 }
 
 // A representation of a Merkle Tree.
