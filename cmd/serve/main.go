@@ -44,10 +44,6 @@ func main() {
 	router.HandleFunc("GET /getFile/{fname}", func(respW http.ResponseWriter, req *http.Request) {
 		rangeHeader := req.Header.Get("Range")
 		reqFileName := req.PathValue("fname")
-		if rangeHeader == "" {
-			http.Error(respW, "No range header", http.StatusInternalServerError)
-			return
-		}
 		if !slices.Contains(fileList, reqFileName) {
 			http.Error(respW, "File does not exist: "+reqFileName, http.StatusNotFound)
 			return
@@ -172,7 +168,9 @@ type Range struct {
 
 func parseRangeHeader(header string, maxLen int) (retRng Range, err error) {
 	if header == "" {
-		return retRng, errors.New("no range header")
+		retRng.start = 0
+		retRng.end = maxLen
+		return retRng, nil
 	}
 	rngString := strings.Split(header, "-")
 	if len(rngString) != 2 {
