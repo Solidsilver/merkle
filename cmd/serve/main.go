@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/base64"
 	"errors"
@@ -9,15 +8,15 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
+	"path"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
+	"time"
 
-	"github.com/Solidsilver/merkle/hash"
-	"github.com/Solidsilver/merkle/mtree"
+	"github.com/Solidsilver/merkle/verify"
 )
 
 var port = 8039
@@ -28,38 +27,77 @@ func main() {
 	if *pathFlag == "" {
 		log.Fatal("You must pass a file to serve `<cmd> -f <file>`")
 	}
-	openFile, err := os.Open(*pathFlag)
+	dir, err := os.ReadDir(*pathFlag)
 	if err != nil {
-		log.Fatal("Failed to open file:", err.Error())
+		log.Fatal("Failed to open dir:", err.Error())
 	}
-	defer openFile.Close()
-
-	inMemFile, err := io.ReadAll(openFile)
-	if err != nil {
-		log.Fatal("Failed to read in file", err.Error())
+	fileDirName := path.Dir(*pathFlag)
+	fileList := []string{}
+	for _, entry := range dir {
+		if !entry.IsDir() {
+			fileList = append(fileList, entry.Name())
+		}
 	}
 
 	router := http.NewServeMux()
 
-	router.HandleFunc("GET /getFileChunk", func(respW http.ResponseWriter, req *http.Request) {
+	router.HandleFunc("GET /getFile/{fname}", func(respW http.ResponseWriter, req *http.Request) {
 		rangeHeader := req.Header.Get("Range")
+		reqFileName := req.PathValue("fname")
 		if rangeHeader == "" {
 			http.Error(respW, "No range header", http.StatusInternalServerError)
+			return
 		}
-		fileRange, err := parseRangeHeader(rangeHeader, len(inMemFile))
+		if !slices.Contains(fileList, reqFileName) {
+			http.Error(respW, "File does not exist: "+reqFileName, http.StatusNotFound)
+			return
+		}
+		file, err := os.Open(path.Join(fileDirName, reqFileName))
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+		fs, err := file.Stat()
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fileRange, err := parseRangeHeader(rangeHeader, int(fs.Size()))
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fileBytes := make([]byte, fileRange.end-fileRange.start)
+		_, err = file.Seek(int64(fileRange.start), 0)
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, err = file.Read(fileBytes)
 		if err != nil {
 			http.Error(respW, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		fmt.Printf("Fetching range %d-%d\n", fileRange.start, fileRange.end)
-		retBytes := inMemFile[fileRange.start:fileRange.end]
 		fmt.Println("sending bytes")
-		respW.Write(retBytes)
+		respW.Write(fileBytes)
 	})
 
-	router.HandleFunc("GET /getHash", func(respW http.ResponseWriter, req *http.Request) {
-		tree, err := hashBytes(inMemFile)
+	router.HandleFunc("GET /getMerkle/{id}", func(respW http.ResponseWriter, req *http.Request) {
+		reqFileName := req.PathValue("id")
+		if !slices.Contains(fileList, reqFileName) {
+			http.Error(respW, "File does not exist: "+reqFileName, http.StatusNotFound)
+			return
+		}
+		file, err := os.Open(path.Join(fileDirName, reqFileName))
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+		tree, err := verify.HashFileHarr(path.Join(fileDirName, reqFileName), 1024)
 		if err != nil {
 			http.Error(respW, err.Error(), http.StatusInternalServerError)
 			return
@@ -78,8 +116,49 @@ func main() {
 	})
 
 	router.HandleFunc("GET /fileInfo/{id}", func(respW http.ResponseWriter, req *http.Request) {
-		fileId := req.PathValue("id")
-		fmt.Println("Fetching file info for", fileId)
+		reqFileName := req.PathValue("id")
+		fmt.Println("Fetching file info for", reqFileName)
+		fmt.Printf("HEAD request for file %s\n", reqFileName)
+		if !slices.Contains(fileList, reqFileName) {
+			http.Error(respW, "File does not exist: "+reqFileName, http.StatusNotFound)
+			return
+		}
+		file, err := os.Open(path.Join(fileDirName, reqFileName))
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+		fs, err := file.Stat()
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintf(respW, `{ "size": "%d" }`, fs.Size())
+	})
+
+	router.HandleFunc("HEAD /getFile/{fname}", func(respW http.ResponseWriter, req *http.Request) {
+		reqFileName := req.PathValue("fname")
+		fmt.Printf("HEAD request for file %s\n", reqFileName)
+		if !slices.Contains(fileList, reqFileName) {
+			http.Error(respW, "File does not exist: "+reqFileName, http.StatusNotFound)
+			return
+		}
+		file, err := os.Open(path.Join(fileDirName, reqFileName))
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+		fs, err := file.Stat()
+		if err != nil {
+			http.Error(respW, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		respW.Header().Set("Content-Type", "blob")
+		respW.Header().Set("Date", time.Now().String())
+		respW.Header().Set("Content-Length", fmt.Sprintf("%d", fs.Size()))
+		respW.WriteHeader(200)
 	})
 	fmt.Printf("Serving on port %d\n", port)
 	http.ListenAndServe(fmt.Sprintf(":%d", port), makeGzipHandler(router))
@@ -114,39 +193,39 @@ func parseRangeHeader(header string, maxLen int) (retRng Range, err error) {
 	return retRng, nil
 }
 
-func hashBytes(data []byte) (*mtree.Tree, error) {
-	splitSize := 1024
-	harr := hash.NewHashArray(int(math.Ceil(float64(len(data)) / float64(splitSize))))
-	jobs := make(chan hash.HashJob, 100)
-	var wg sync.WaitGroup
-
-	workers := 3
-	wg.Add(workers)
-	for range workers {
-		go hash.HashWorker(jobs, harr, &wg)
-	}
-	reader := bytes.NewReader(data)
-	complete := false
-	for !complete {
-		chunk := make([]byte, splitSize)
-		bytesRead, err := io.ReadFull(reader, chunk)
-		if err == io.EOF || bytesRead < splitSize {
-			complete = true
-		} else if err != nil {
-			fmt.Println(err.Error())
-			return nil, err
-		}
-		if bytesRead != 0 {
-			harr.QueueHashInsert(chunk, jobs)
-		}
-	}
-	close(jobs)
-	wg.Wait()
-	fmt.Println()
-	bt := harr.BuildTree()
-
-	return bt, nil
-}
+// func hashBytes(data []byte) (*mtree.Tree, error) {
+// 	splitSize := 1024
+// 	harr := hash.NewHashArray(int(math.Ceil(float64(len(data)) / float64(splitSize))))
+// 	jobs := make(chan hash.HashJob, 100)
+// 	var wg sync.WaitGroup
+//
+// 	workers := 3
+// 	wg.Add(workers)
+// 	for range workers {
+// 		go hash.HashWorker(jobs, harr, &wg)
+// 	}
+// 	reader := bytes.NewReader(data)
+// 	complete := false
+// 	for !complete {
+// 		chunk := make([]byte, splitSize)
+// 		bytesRead, err := io.ReadFull(reader, chunk)
+// 		if err == io.EOF || bytesRead < splitSize {
+// 			complete = true
+// 		} else if err != nil {
+// 			fmt.Println(err.Error())
+// 			return nil, err
+// 		}
+// 		if bytesRead != 0 {
+// 			harr.QueueHashInsert(chunk, jobs)
+// 		}
+// 	}
+// 	close(jobs)
+// 	wg.Wait()
+// 	fmt.Println()
+// 	bt := harr.BuildTree()
+//
+// 	return bt, nil
+// }
 
 type gzipResponseWriter struct {
 	io.Writer
