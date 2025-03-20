@@ -172,6 +172,7 @@ func parseRangeHeader(header string, maxLen int) (retRng Range, err error) {
 		retRng.end = maxLen
 		return retRng, nil
 	}
+	header = strings.TrimPrefix(header, "bytes=")
 	rngString := strings.Split(header, "-")
 	if len(rngString) != 2 {
 		return retRng, errors.Join(errors.New("failed to parse range header"), err)
