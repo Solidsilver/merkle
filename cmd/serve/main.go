@@ -64,7 +64,7 @@ func main() {
 			http.Error(respW, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fileBytes := make([]byte, fileRange.end-fileRange.start)
+		fileBytes := make([]byte, (fileRange.end+1)-fileRange.start)
 		_, err = file.Seek(int64(fileRange.start), 0)
 		if err != nil {
 			http.Error(respW, err.Error(), http.StatusInternalServerError)
@@ -169,7 +169,7 @@ type Range struct {
 func parseRangeHeader(header string, maxLen int) (retRng Range, err error) {
 	if header == "" {
 		retRng.start = 0
-		retRng.end = maxLen
+		retRng.end = maxLen - 1
 		return retRng, nil
 	}
 	header = strings.TrimPrefix(header, "bytes=")
